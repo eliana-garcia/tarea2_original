@@ -5,30 +5,37 @@
 #include <stdlib.h>
 #include <string.h>
 
+
 typedef struct {
-  char id[100];
-  char title[100];
-  List *genres;
-  char director[300];
-  float rating;
-  int year;
-} Film;
+    char id[100];
+    List *artists;
+    char album_name[256];
+    char track_name[256];
+    float tempo;
+    char genre[100];
+}Song;
+
+typedef struct {
+    char name[100];
+    List *songs; 
+}Playlist;
+
 
 // Menú principal
 void mostrarMenuPrincipal() {
   limpiarPantalla();
   puts("========================================");
-  puts("     Base de Datos de Películas");
+  puts("             SPOTIFIND");
   puts("========================================");
-
-  puts("1) Cargar Películas");
-  puts("2) Buscar por id");
-  puts("3) Buscar por director");
-  puts("4) Buscar por género");
-  puts("5) Buscar por década");
-  puts("6) Buscar por rango de calificaciones");
-  puts("7) Buscar por década y género");
+  puts("1) Cargar Canciones");
+  puts("2) Buscar por género");
+  puts("3) Buscar por artista");
+  puts("4) Buscar por tempo");
+  puts("5) Crear lista de reproducción");
+  puts("6) Agregar canción a lista");
+  puts("7) Mostrar canciones de una lista");
   puts("8) Salir");
+  printf("Seleccione una opción: ");
 }
 
 /**
@@ -55,167 +62,249 @@ int is_equal_int(void *key1, void *key2) {
   return *(int *)key1 == *(int *)key2; // Compara valores enteros directamente
 }
 
-/**
- * Carga películas desde un archivo CSV y las almacena en un mapa por ID.
- */
-void cargar_peliculas(Map *pelis_byid, Map *pelis_bygenres) {
-  // Intenta abrir el archivo CSV que contiene datos de películas
-  FILE *archivo = fopen("data/Top1500.csv", "r");
+
+void cargar_canciones(Map *by_id, Map *by_genre, Map *by_artist, List *all_songs) {
+  FILE *archivo = fopen("data/song_dataset_.csv", "r");
   if (archivo == NULL) {
-    perror(
-        "Error al abrir el archivo"); // Informa si el archivo no puede abrirse
-    return;
+      perror("Error al abrir el archivo");
+      return;
   }
 
   char **campos;
-  // Leer y parsear una línea del archivo CSV. La función devuelve un array de
-  // strings, donde cada elemento representa un campo de la línea CSV procesada.
-  campos = leer_linea_csv(archivo, ','); // Lee los encabezados del CSV
+  campos = leer_linea_csv(archivo, ','); // Leer encabezados
 
-  // Lee cada línea del archivo CSV hasta el final
   while ((campos = leer_linea_csv(archivo, ',')) != NULL) {
-    // Crea una nueva estructura Film y almacena los datos de cada película
-    Film *peli = (Film *)malloc(sizeof(Film));
-    strcpy(peli->id, campos[1]);        // Asigna ID
-    strcpy(peli->title, campos[5]);     // Asigna título
-    strcpy(peli->director, campos[14]); // Asigna director
-    peli->genres = split_string(campos[11], ",");       // Inicializa la lista de géneros
-    peli->year =
-        atoi(campos[10]); // Asigna año, convirtiendo de cadena a entero
+      if (!campos[1] || !campos[2] || !campos[3] || !campos[4] || !campos[18] || !campos[20])
+          continue;
 
-    
-    // Inserta la película en el mapa usando el ID como clave
-    map_insert(pelis_byid, peli->id, peli);
+      Song *s = malloc(sizeof(Song));
+      if (!s) continue;
 
-    // Código generado con ayuda de chatgpt3.5
-    // conversación: https://chat.openai.com/share/5f0643ad-e8f5-4fb7-a0fa-2d2f92408429
-    
-    // Obtiene el primer género de la lista de géneros de la película
-    char *genre = list_first(peli->genres);
-    // Itera sobre cada género de la película
-    while (genre != NULL) {
-        // Busca el género en el mapa pelis_bygenres
-        MapPair *genre_pair = map_search(pelis_bygenres, genre);
+      strcpy(s->id, campos[1]);
+      strcpy(s->track_name, campos[4]);
+      s->artists = split_string(campos[2], ";");
+      strcpy(s->album_name, campos[3]);
+      s->tempo = atof(campos[18]);
+      strcpy(s->genre, campos[20]);
 
-        // Si el género no existe en el mapa, crea una nueva lista y agrégala al mapa
-        if (genre_pair == NULL) {
-            List *new_list = list_create();
-            list_pushBack(new_list, peli);
-            map_insert(pelis_bygenres, genre, new_list);
-        } else {
-            // Si el género ya existe en el mapa, obtén la lista y agrega la película
-            List *genre_list = (List *)genre_pair->value;
-            list_pushBack(genre_list, peli);
-        }
+      list_pushBack(all_songs, s);
+      map_insert(by_id, s->id, s);
 
-        // Avanza al siguiente género en la lista
-        genre = list_next(peli->genres);
-    }
-    
-  }
-  fclose(archivo); // Cierra el archivo después de leer todas las líneas
+      // por género
+      MapPair *pair = map_search(by_genre, s->genre);  // Buscar en el mapa por género
+      List *genero_list = NULL;
 
+      if (pair) {
+          genero_list = (List *) pair->value;  // Si ya existe el género, obtener la lista
+      } else {
+          genero_list = list_create();  // Si no existe, crear una nueva lista
+          map_insert(by_genre, s->genre, genero_list);  // Insertar el género con su lista
+      }
+      list_pushBack(genero_list, s);  // Agregar la canción a la lista de género
 
-  // Itera sobre el mapa para mostrar las películas cargadas
-  MapPair *pair = map_first(pelis_byid);
-  while (pair != NULL) {
-    Film *peli = pair->value;
-    printf("ID: %s, Título: %s, Director: %s, Año: %d\n", peli->id, peli->title,
-           peli->director, peli->year);
+      // por artista
+      for (char *artista = list_first(s->artists); artista != NULL; artista = list_next(s->artists)) {
+          MapPair *pair_artista = map_search(by_artist, artista);  // Buscar en el mapa por artista
+          List *artista_list = NULL;
 
-    printf("Géneros: ");
-    for(char *genre = list_first(peli->genres); genre != NULL; genre = list_next(peli->genres))
-      printf("%s, ", genre);
-    printf("\n");
-    
-    pair = map_next(pelis_byid); // Avanza al siguiente par en el mapa
-  }
-}
-
-/**
- * Busca y muestra la información de una película por su ID en un mapa.
- */
-void buscar_por_id(Map *pelis_byid) {
-  char id[10]; // Buffer para almacenar el ID de la película
-
-  // Solicita al usuario el ID de la película
-  printf("Ingrese el id de la película: ");
-  scanf("%s", id); // Lee el ID del teclado
-
-  // Busca el par clave-valor en el mapa usando el ID proporcionado
-  MapPair *pair = map_search(pelis_byid, id);
-
-  // Si se encontró el par clave-valor, se extrae y muestra la información de la
-  // película
-  if (pair != NULL) {
-    Film *peli =
-        pair->value; // Obtiene el puntero a la estructura de la película
-    // Muestra el título y el año de la película
-    printf("Título: %s, Año: %d\n", peli->title, peli->year);
-  } else {
-    // Si no se encuentra la película, informa al usuario
-    printf("La película con id %s no existe\n", id);
-  }
-}
-
-void buscar_por_genero(Map *pelis_bygenres) {
-  char genero[100];
-
-  // Solicita al usuario el ID de la película
-  printf("Ingrese el género de la película: ");
-  scanf("%s", genero); // Lee el ID del teclado
-
-  MapPair *pair = map_search(pelis_bygenres, genero);
-  
-  if (pair != NULL) {
-      List* pelis = pair->value;
-      Film *peli = list_first(pelis);
-      
-      while (peli != NULL) {
-        printf("ID: %s, Título: %s, Director: %s, Año: %d\n", peli->id, peli->title,
-           peli->director, peli->year);
-        peli = list_next(pelis);
+          if (pair_artista) {
+              artista_list = (List *) pair_artista->value;  // Si ya existe el artista, obtener la lista
+          } else {
+              artista_list = list_create();  // Si no existe, crear una nueva lista
+              map_insert(by_artist, artista, artista_list);  // Insertar el artista con su lista
+          }
+          list_pushBack(artista_list, s);  // Agregar la canción a la lista de artista
       }
   }
+  fclose(archivo);
+  puts("Canciones cargadas con éxito.");
+}   
+
+void buscar_por_genero(Map *by_genre) {
+    char genero[100];
+    printf("Ingrese el género: ");
+    scanf(" %[^\n]s", genero);
+
+    MapPair *pair = map_search(by_genre, genero);
+    if (!pair) {
+        printf("No se encontraron canciones con el género '%s'\n", genero);
+        return;
+    }
+
+    List *lista = pair->value;
+    Song *cancion = list_first(lista);
+    while (cancion) {
+        printf("🎵 %s - %s [%s | Tempo %.2f]\n", list_first(cancion->artists), cancion->track_name, cancion->album_name, cancion->tempo);
+        cancion = list_next(lista);
+    }
+}
+
+void buscar_por_artista(Map *by_artist) {
+    char artista[100];
+    printf("Ingrese el nombre del artista: ");
+    scanf(" %[^\n]s", artista);
+
+    MapPair *pair = map_search(by_artist, artista);
+    if (!pair) {
+        printf("No se encontraron canciones de ese artista.\n");
+        return;
+    }
+
+    List *lista = pair->value;
+    Song *c = list_first(lista);
+    while (c) {
+        char *a = list_first(c->artists);
+        while (a) {
+            printf("%s", a);
+            a = list_next(c->artists);
+            if (a) printf(", ");
+        }
+        printf(" - %s [%s | Tempo %.2f]\n", c->track_name, c->album_name, c->tempo);
+        c = list_next(lista);
+    }
+}
+
+void buscar_por_tempo(List *all_songs) {
+  float tempo_min, tempo_max;
+  printf("Ingrese el rango de tempo (mínimo máximo): ");
+  scanf("%f %f", &tempo_min, &tempo_max);
+
+  int found = 0;  // Para verificar si se encontró alguna canción en el rango
+
+  Song *cancion = list_first(all_songs);
+  while (cancion) {
+      if (cancion->tempo >= tempo_min && cancion->tempo <= tempo_max) {
+          // Mostrar detalles de la canción
+          char *artista = list_first(cancion->artists);
+          while (artista) {
+              printf("%s", artista);
+              artista = list_next(cancion->artists);
+              if (artista) printf(", ");
+          }
+          printf(" - %s [%s | Tempo %.2f BPM | %s]\n", cancion->track_name, cancion->album_name, cancion->tempo, cancion->genre);
+          found = 1;
+      }
+      cancion = list_next(all_songs); // Avanzar a la siguiente canción
+  }
+
+  if (!found) {
+      printf("No se encontraron canciones en el rango de tempo %.2f - %.2f\n", tempo_min, tempo_max);
+  }
+}
+
+void crear_playlist(Map *playlists){
+    char nombre[100];
+    printf("Ingrese el nombre de la nueva lista de reproducción: ");
+    scanf(" %[^\n]s", nombre);
+
+    // Verificar si la lista ya existe
+    if (map_search(playlists, nombre)) {
+        printf("¡Ya existe una lista con ese nombre!\n");
+        return;
+    }
+
+    // Crear lista de reproducción vacía
+    List *nueva_lista = list_create();
+    map_insert(playlists, nombre, nueva_lista);
+
+    printf("Lista de reproducción '%s' creada con éxito.\n", nombre);
+
+}
+void agregar_a_playlist(Map *playlists, Map *by_id){
+    char playlist_name[100], song_id[100];
+    printf("Ingrese el nombre de la lista de reproducción: ");
+    scanf(" %[^\n]s", playlist_name);
+
+    MapPair *pair = map_search(playlists, playlist_name);
+    if (!pair) {
+        printf("La lista de reproducción no existe.\n");
+        return;
+    }
+
+    List *playlist = pair->value;
+    printf("Ingrese el ID de la canción que desea agregar: ");
+    scanf(" %[^\n]s", song_id);
+
+    MapPair *song_pair = map_search(by_id, song_id);
+    if (!song_pair) {
+        printf("No se encontró una canción con ese ID.\n");
+        return;
+    }
+
+    Song *song = song_pair->value;
+    list_pushBack(playlist, song);
+    printf("Canción '%s' agregada a la lista '%s'.\n", song->track_name, playlist_name);
+}
+
+void mostrar_playlist(Map *playlists) {
+    char playlist_name[100];
+    printf("Ingrese el nombre de la lista de reproducción: ");
+    scanf(" %[^\n]s", playlist_name);
+
+    MapPair *pair = map_search(playlists, playlist_name);
+    if (!pair) {
+        printf("La lista de reproducción no existe.\n");
+        return;
+    }
+
+    List *playlist = pair->value;
+    Song *song = list_first(playlist);
+    while (song) {
+        // Imprimir artistas
+        char *artist = list_first(song->artists);
+        while (artist) {
+            printf("%s", artist);
+            artist = list_next(song->artists);
+            if (artist) printf(", ");
+        }
+        printf(" - %s [%s | Tempo %.2f BPM | %s]\n", song->track_name, song->album_name, song->tempo, song->genre);
+        song = list_next(playlist); // Avanzar a la siguiente canción en la lista
+    }
 }
 
 int main() {
-  char opcion; // Variable para almacenar una opción ingresada por el usuario
-               // (sin uso en este fragmento)
+  Map *by_id = map_create(is_equal_str);
+  Map *by_genre = map_create(is_equal_str);
+  Map *by_artist = map_create(is_equal_str);
+  Map *playlists = map_create(is_equal_str);
+  List *all_songs = list_create();
 
-  // Crea un mapa para almacenar películas, utilizando una función de
-  // comparación que trabaja con claves de tipo string.
-  Map *pelis_byid = map_create(is_equal_str);
-  Map *pelis_bygenres = map_create(is_equal_str);
-
-  // Recuerda usar un mapa por criterio de búsqueda
+  char opcion;
 
   do {
-    mostrarMenuPrincipal();
-    printf("Ingrese su opción: ");
-    scanf(" %c", &opcion);
+      mostrarMenuPrincipal();
+      scanf(" %c", &opcion);
 
-    switch (opcion) {
-    case '1':
-      cargar_peliculas(pelis_byid, pelis_bygenres);
-      break;
-    case '2':
-      buscar_por_id(pelis_byid);
-      break;
-    case '3':
-      break;
-    case '4':
-      buscar_por_genero(pelis_bygenres);
-      break;
-    case '5':
-      break;
-    case '6':
-      break;
-    case '7':
-      break;
-    }
-    presioneTeclaParaContinuar();
-
+      switch (opcion) {
+          case '1':
+              cargar_canciones(by_id, by_genre, by_artist, all_songs);
+              break;
+          case '2':
+              buscar_por_genero(by_genre);
+              break;
+          case '3':
+              buscar_por_artista(by_artist);
+              break;
+          case '4':
+              buscar_por_tempo(all_songs);
+              break;
+          case '5':
+              crear_playlist(playlists);
+              break;
+          case '6':
+              agregar_a_playlist(playlists, by_id);
+              break;
+          case '7':
+              mostrar_playlist(playlists);
+              break;
+          case '8':
+              puts("Saliendo...");
+              break;
+          default:
+              puts("Opción inválida.");
+              break;
+      }
+      presioneTeclaParaContinuar();
   } while (opcion != '8');
 
   return 0;
