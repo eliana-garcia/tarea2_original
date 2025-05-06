@@ -1,6 +1,4 @@
 
-printf("Hola");
-int dato;
 
 /* 
 git add .
