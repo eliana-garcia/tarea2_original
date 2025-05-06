@@ -1,0 +1,3 @@
+
+printf("Hola");
+int dato;
