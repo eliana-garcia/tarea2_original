@@ -62,7 +62,7 @@ int is_equal_int(void *key1, void *key2) {
 
 
 void cargar_canciones(Map *songs_by_id, Map *songs_by_genre, Map *songs_by_artist, List *todasLasCanciones) {
-    FILE *archivo = fopen("data/song_dataset_.csv", "r");
+    FILE *archivo = fopen("song_dataset_.csv", "r");
 
     if (!archivo) {
         perror("Error al abrir el archivo");
@@ -71,6 +71,9 @@ void cargar_canciones(Map *songs_by_id, Map *songs_by_genre, Map *songs_by_artis
 
     char **campos = leer_linea_csv(archivo, ',');
     while ((campos = leer_linea_csv(archivo, ',')) != NULL) {
+        if (map_search(songs_by_id, campos[1]) != NULL) {
+            continue; 
+        }       
         Song *song = malloc(sizeof(Song));
         strcpy(song->id, campos[1]);
         song->artists = split_string(campos[2], ";");

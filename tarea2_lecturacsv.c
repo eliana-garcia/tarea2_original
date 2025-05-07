@@ -9,7 +9,7 @@
  */
 void leer_canciones() {
   // Intenta abrir el archivo CSV que contiene datos de películas
-  FILE *archivo = fopen("data/song_dataset_.csv", "r");
+  FILE *archivo = fopen("song_dataset_.csv", "r");
   if (archivo == NULL) {
     perror(
         "Error al abrir el archivo"); // Informa si el archivo no puede abrirse
