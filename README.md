@@ -1,5 +1,5 @@
 
-Para ejecutar el ejemplo tarea2 primero debemos compilar (en la carpeta raíz)
+Para ejecutar la tarea2 primero debemos compilar (en la carpeta raíz)
 ````
 gcc tdas/*.c tarea2.c -Wno-unused-result -o tarea2
 ````

@@ -5,35 +5,34 @@
 #include <stdlib.h>
 #include <string.h>
 
-
 typedef struct {
     char id[100];
     char track_name[200];
     char album_name[200];
-    List* artists;  
+    List* artists;
     float tempo;
     char genre[100];
 } Song;
 
 typedef struct {
     char name[100];
-    List *songs; 
+    List *songs;
 } Playlist;
 
 void mostrarMenuPrincipal() {
-  limpiarPantalla();
-  puts("========================================");
-  puts("             SPOTIFIND");
-  puts("========================================");
-  puts("1) Cargar Canciones");
-  puts("2) Buscar por género");
-  puts("3) Buscar por artista");
-  puts("4) Buscar por tempo");
-  puts("5) Crear lista de reproducción");
-  puts("6) Agregar canción a lista");
-  puts("7) Mostrar canciones de una lista");
-  puts("8) Salir");
-  printf("Seleccione una opción: ");
+    limpiarPantalla();
+    puts("========================================");
+    puts("             SPOTIFIND");
+    puts("========================================");
+    puts("1) Cargar Canciones");
+    puts("2) Buscar por género");
+    puts("3) Buscar por artista");
+    puts("4) Buscar por tempo");
+    puts("5) Crear lista de reproducción");
+    puts("6) Agregar canción a lista");
+    puts("7) Mostrar canciones de una lista");
+    puts("8) Salir");
+    printf("Seleccione una opción: ");
 }
 
 /**
@@ -45,24 +44,24 @@ void mostrarMenuPrincipal() {
  * @return Retorna 1 si las claves son iguales, 0 de lo contrario.
  */
 int is_equal_str(void *key1, void *key2) {
-  return strcmp((char *)key1, (char *)key2) == 0;
+    return strcmp((char *)key1, (char *)key2) == 0;
 }
-
-/**
- * Compara dos claves de tipo entero para determinar si son iguales.
- * Esta función se utiliza para inicializar mapas con claves de tipo entero.
- *
- * @param key1 Primer puntero a la clave entera.
- * @param key2 Segundo puntero a la clave entera.
- * @return Retorna 1 si las claves son iguales, 0 de lo contrario.
- */
+  
+  /**
+   * Compara dos claves de tipo entero para determinar si son iguales.
+   * Esta función se utiliza para inicializar mapas con claves de tipo entero.
+   *
+   * @param key1 Primer puntero a la clave entera.
+   * @param key2 Segundo puntero a la clave entera.
+   * @return Retorna 1 si las claves son iguales, 0 de lo contrario.
+   */
 int is_equal_int(void *key1, void *key2) {
-  return *(int *)key1 == *(int *)key2; // Compara valores enteros directamente
+    return *(int *)key1 == *(int *)key2; // Compara valores enteros directamente
 }
-
-
+  
+  
 void cargar_canciones(Map *songs_by_id, Map *songs_by_genre, Map *songs_by_artist, List *todasLasCanciones) {
-    FILE *archivo = fopen("song_dataset_.csv", "r");
+    FILE *archivo = fopen("data/song_dataset_.csv", "r");
 
     if (!archivo) {
         perror("Error al abrir el archivo");
@@ -108,7 +107,7 @@ void cargar_canciones(Map *songs_by_id, Map *songs_by_genre, Map *songs_by_artis
 
     fclose(archivo);
     puts("Canciones cargadas exitosamente.");
-}
+} 
 
 void buscar_por_genero(Map *songs_by_genre) {
     char genero[100];
@@ -245,7 +244,7 @@ int main() {
     Map *by_artist = map_create(is_equal_str);         
     Map *playlists = map_create(is_equal_str);         
     List *all_songs = list_create();                   
-    cargar_canciones(mapaCanciones, by_genre, by_artist, all_songs);
+
     int opcion;
     do {
         mostrarMenuPrincipal();
@@ -274,13 +273,18 @@ int main() {
                 mostrar_lista(playlists);
                 break;
             case 8:
-                printf("¡Hasta pronto!\n");
+                printf("¡Hasta luego!\n");
                 break;
             default:
-                printf("Opción no válida. Intente de nuevo.\n");
+                printf("Opción no válida. Intente nuevamente.\n");
+                break;
         }
 
-        if (opcion != 8) presioneTeclaParaContinuar();
+        if (opcion != 8) {
+            printf("\nPresione ENTER para continuar...");
+            getchar();  
+            getchar();  
+        }
 
     } while (opcion != 8);
 
