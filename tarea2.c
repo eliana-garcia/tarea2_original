@@ -62,52 +62,77 @@ int is_equal_int(void *key1, void *key2) {
   
 void cargar_canciones(Map *songs_by_id, Map *songs_by_genre, Map *songs_by_artist, List *todasLasCanciones) {
     FILE *archivo = fopen("data/song_dataset_.csv", "r");
-
     if (!archivo) {
         perror("Error al abrir el archivo");
         return;
     }
 
     char **campos = leer_linea_csv(archivo, ',');
-    while ((campos = leer_linea_csv(archivo, ',')) != NULL) {
-        if (map_search(songs_by_id, campos[1]) != NULL) {
-            continue; 
-        }       
-        Song *song = malloc(sizeof(Song));
-        strcpy(song->id, campos[1]);
-        song->artists = split_string(campos[2], ";");
-        strcpy(song->album_name, campos[3]);
-        strcpy(song->track_name, campos[4]);
-        song->tempo = atof(campos[18]);
-        strcpy(song->genre, campos[20]);
+    if (!campos) {
+        puts("El archivo CSV está vacío.");
+        fclose(archivo);
+        return;
+    }
 
-        list_pushBack(todasLasCanciones, song);
-        map_insert(songs_by_id, song->id, song);
-        MapPair *pair_genre = map_search(songs_by_genre, song->genre);
-        if (pair_genre == NULL) {
-            List *lista_genre = list_create();
-            list_pushBack(lista_genre, song);
-            map_insert(songs_by_genre, strdup(song->genre), lista_genre);
-        } else {
-            List *lista_genre = pair_genre->value;
-            list_pushBack(lista_genre, song);
+    while ((campos = leer_linea_csv(archivo, ',')) != NULL) {
+        if (!campos[0] || !campos[2] || !campos[3] || !campos[4] || !campos[18] || !campos[20]) continue;
+
+        if (map_search(songs_by_id, campos[0]) != NULL) continue;
+
+        Song *song = malloc(sizeof(Song));
+        if (!song) {
+            perror("Error al reservar memoria para canción");
+            continue;
         }
+
+        strncpy(song->id, campos[0], sizeof(song->id) - 1);
+        song->id[sizeof(song->id) - 1] = '\0';
+
+        song->artists = split_string(campos[2], ";");
+
+        strncpy(song->album_name, campos[3], sizeof(song->album_name) - 1);
+        song->album_name[sizeof(song->album_name) - 1] = '\0';
+
+        strncpy(song->track_name, campos[4], sizeof(song->track_name) - 1);
+        song->track_name[sizeof(song->track_name) - 1] = '\0';
+
+        song->tempo = atof(campos[18]);
+
+        strncpy(song->genre, campos[20], sizeof(song->genre) - 1);
+        song->genre[sizeof(song->genre) - 1] = '\0';
+
+    
+        list_pushBack(todasLasCanciones, song);
+
+ 
+        map_insert(songs_by_id, strdup(song->id), song);
+
+      
+        MapPair *pair_genre = map_search(songs_by_genre, song->genre);
+        if (!pair_genre) {
+            List *list_genre = list_create();
+            list_pushBack(list_genre, song);
+            map_insert(songs_by_genre, strdup(song->genre), list_genre);
+        } else {
+            list_pushBack((List *)pair_genre->value, song);
+        }
+
+     
         for (char *artista = list_first(song->artists); artista != NULL; artista = list_next(song->artists)) {
             MapPair *pair_artist = map_search(songs_by_artist, artista);
-            if (pair_artist == NULL) {
-                List *lista_artist = list_create();
-                list_pushBack(lista_artist, song);
-                map_insert(songs_by_artist, strdup(artista), lista_artist);
+            if (!pair_artist) {
+                List *list_artist = list_create();
+                list_pushBack(list_artist, song);
+                map_insert(songs_by_artist, strdup(artista), list_artist);
             } else {
-                List *lista_artist = pair_artist->value;
-                list_pushBack(lista_artist, song);
+                list_pushBack((List *)pair_artist->value, song);
             }
         }
     }
 
     fclose(archivo);
     puts("Canciones cargadas exitosamente.");
-} 
+}
 
 void buscar_por_genero(Map *songs_by_genre) {
     char genero[100];
@@ -148,7 +173,6 @@ void buscar_por_artista(Map *songs_by_artist) {
         song = list_next(lista);
     }
 }
-
 
 void buscar_por_tempo(List *todasLasCanciones) {
     int opcion;
