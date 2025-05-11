@@ -14,6 +14,8 @@ struct List {
   int size;
 };
 
+typedef List List;
+
 List *list_create() {
   List *newList = (List *)malloc(sizeof(List));
   if (newList == NULL) {
@@ -155,6 +157,10 @@ void *list_popBack(List *L) {
   return data;
 }
 
+int list_size(List *L){
+    return L->size;
+}
+
 void *list_popCurrent(List *L) {
   if (L == NULL || L->current == NULL) {
     return NULL; // Lista no inicializada o current no definido
@@ -186,8 +192,6 @@ void list_clean(List *L) {
   Node *next;
   while (current != NULL) {
     next = current->next;
-    // Si los datos son punteros dinámicos, liberarlos también
-    free(current->data); // Esto solo es necesario si la memoria de los datos fue asignada dinámicamente.
     free(current);
     current = next;
   }
@@ -195,8 +199,4 @@ void list_clean(List *L) {
   L->tail = NULL;
   L->current = NULL;
   L->size = 0;
-}
-
-int list_size(List *L) {
-  return L->size;
 }

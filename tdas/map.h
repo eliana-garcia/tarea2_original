@@ -4,16 +4,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-typedef struct MapPair {
+typedef struct {
   void *key;
   void *value;
 } MapPair;
 
-typedef struct Map {
-  int (*lower_than)(void *key1, void *key2);
-  int (*is_equal)(void *key1, void *key2);
-  List *ls;
-} Map;
+typedef struct Map Map;
 
 Map *map_create(int (*is_equal)(void *key1, void *key2)); // unsorted map
 
