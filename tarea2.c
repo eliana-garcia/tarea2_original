@@ -39,7 +39,8 @@ void mostrarMenuPrincipal() {
 }
 
 // Función para mostrar canciones 
-void mostrarCanciones(Song *song){
+void mostrarCanciones(Song *song) {
+    if (!song) return;
     printf("ID: %s | Artista: %s | Álbum: %s | Canción: %s | Tempo: %.2f | Género: %s\n",
         song->id, song->artists, song->album_name, song->track_name, song->tempo, song->genre);
 }
@@ -54,36 +55,58 @@ int is_equal_str(void *key1, void *key2) {
 
 void cargarCanciones(Map *mapaCanciones, Map *by_genre, Map *by_artist, FILE *archivo) {
     char linea[1024];
-    fgets(linea, sizeof(linea), archivo);  // Saltar cabecera
+    if (!fgets(linea, sizeof(linea), archivo)) return;  // Saltar cabecera
 
     while (fgets(linea, sizeof(linea), archivo)) {
         char *campos[30];  // Suponemos que hay hasta 30 columnas
         int i = 0;
-
+        char *linea_copia = strdup(linea);
+        
+        if (!linea_copia) continue;
+        
         // Eliminar el salto de línea al final de la línea
-        linea[strcspn(linea, "\r\n")] = 0;
+        linea_copia[strcspn(linea_copia, "\r\n")] = 0;
 
-        char *token = strtok(linea, ",");
+        char *token = strtok(linea_copia, ",");
         while (token && i < 30) {
             campos[i++] = token;
             token = strtok(NULL, ",");
         }
 
-        if (i < 22) continue; // Requiere al menos hasta el campo 21 (índice 21)
+        if (i < 22) {
+            free(linea_copia);
+            continue;
+        }
 
         char *id = campos[0];
-        if (!id || map_search(mapaCanciones, id)) continue;
+        if (!id || map_search(mapaCanciones, id)) {
+            free(linea_copia);
+            continue;
+        }
 
         Song *song = malloc(sizeof(Song));
-        if (!song) continue;
+        if (!song) {
+            free(linea_copia);
+            continue;
+        }
 
-        // Copiar los campos relevantes
-        strcpy(song->id, id);
-        strcpy(song->artists, campos[2]);
-        strcpy(song->album_name, campos[3]);
-        strcpy(song->track_name, campos[4]);
+        // Copiar los campos relevantes con verificación de longitud
+        strncpy(song->id, id, sizeof(song->id) - 1);
+        song->id[sizeof(song->id) - 1] = '\0';
+        
+        strncpy(song->artists, campos[2], sizeof(song->artists) - 1);
+        song->artists[sizeof(song->artists) - 1] = '\0';
+        
+        strncpy(song->album_name, campos[3], sizeof(song->album_name) - 1);
+        song->album_name[sizeof(song->album_name) - 1] = '\0';
+        
+        strncpy(song->track_name, campos[4], sizeof(song->track_name) - 1);
+        song->track_name[sizeof(song->track_name) - 1] = '\0';
+        
         song->tempo = atof(campos[19]);
-        strcpy(song->genre, campos[21]);
+        
+        strncpy(song->genre, campos[21], sizeof(song->genre) - 1);
+        song->genre[sizeof(song->genre) - 1] = '\0';
 
 
         // Insertar en mapa general
@@ -114,43 +137,57 @@ void cargarCanciones(Map *mapaCanciones, Map *by_genre, Map *by_artist, FILE *ar
 void buscar_por_genero(Map *by_genre) {
     char genero[100];
     printf("Ingrese el género que desea buscar: ");
-    scanf(" %[^\n]", genero); // Lee una línea completa con espacios
+    scanf(" %[^\n]", genero);
 
-    List *lista = (List *) map_search(by_genre, genero);
+    MapPair *pair = map_search(by_genre, genero);
+    if (!pair || !pair->value) {
+        printf("No se encontraron canciones para el género \"%s\".\n", genero);
+        return;
+    }
+
+    List *lista = (List *)pair->value;
     if (!lista || list_size(lista) == 0) {
         printf("No se encontraron canciones para el género \"%s\".\n", genero);
         return;
     }
 
-    printf("Canciones del género \"%s\":\n", genero);
-    Song *song = list_first(lista);
-    while (song) {
+    printf("\nCanciones del género \"%s\":\n", genero);
+    printf("----------------------------------------\n");
+    
+    Song *song = (Song *)list_first(lista);
+    while (song != NULL) {
         mostrarCanciones(song);
-        song = list_next(lista);
+        song = (Song *)list_next(lista);
     }
+    printf("----------------------------------------\n");
 }
 
 void buscar_por_artista(Map *by_artist) {
     char artista[100];
     printf("Ingrese el nombre del artista que desea buscar: ");
-    scanf(" %[^\n]", artista);  // Lee una línea completa con espacios
+    scanf(" %[^\n]", artista);
 
-    // Eliminar espacios en blanco al inicio y al final del nombre del artista
-    char *trimmed_artist = strtok(artista, "\n");
-    // Buscar en el mapa por el nombre del artista
-    List *lista = (List *) map_search(by_artist, trimmed_artist);
+    MapPair *pair = map_search(by_artist, artista);
+    if (!pair || !pair->value) {
+        printf("No se encontraron canciones para el artista \"%s\".\n", artista);
+        return;
+    }
+
+    List *lista = (List *)pair->value;
     if (!lista || list_size(lista) == 0) {
         printf("No se encontraron canciones para el artista \"%s\".\n", artista);
         return;
     }
 
-    // Mostrar las canciones encontradas
-    printf("Canciones del artista \"%s\":\n", artista);
-    Song *song = list_first(lista);
-    while (song) {
+    printf("\nCanciones del artista \"%s\":\n", artista);
+    printf("----------------------------------------\n");
+    
+    Song *song = (Song *)list_first(lista);
+    while (song != NULL) {
         mostrarCanciones(song);
-        song = list_next(lista);
+        song = (Song *)list_next(lista);
     }
+    printf("----------------------------------------\n");
 }
 
 // Función para buscar canciones según el tempo seleccionado por el usuario
