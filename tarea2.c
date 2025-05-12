@@ -1,29 +1,25 @@
+/*
+ * Spotifind - Gestor de canciones y listas de reproducción
+ */
+
 #include "tdas/extra.h"
 #include "tdas/list.h"
 #include "tdas/map.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
-#include <ctype.h>
 
-// Estructura para almacenar la información de una canción 
+// Definición de estructuras
 typedef struct {
-    char id[50]; // ID de la canción
-    char artists[100]; // Nombre del artista
-    char album_name[100]; // Nombre del álbum de la canción
-    char track_name[100]; // nombre de la canción
-    float tempo; // Tempo de la canción
-    char genre[50]; // Género de la canción
-}Song;
+    char id[100];
+    char track_name[200];
+    char album_name[200];
+    List* artists; // Lista de char*
+    float tempo;
+    char genre[100];
+} Song;
 
-// Estructura para almacenar la información de la lista de reproducción
-typedef struct {
-    char name[100];// Nombre de la lista de reproducción
-    List *songs;// Lista de canciones
-} Playlist;
-
-// Menu principal
+// Menú principal
 void mostrarMenuPrincipal() {
     limpiarPantalla();
     puts("========================================");
@@ -37,43 +33,31 @@ void mostrarMenuPrincipal() {
     puts("6) Agregar canción a lista");
     puts("7) Mostrar canciones de una lista");
     puts("8) Salir");
-    printf("Seleccione una opcion: ");
+    printf("Seleccione una opción: ");
 }
 
-// Función para mostrar canciones 
-void mostrarCanciones(Song *song) {
-    if (!song) return;
-    printf("ID: %s | Artista: %s | Álbum: %s | Canción: %s | Tempo: %.2f | Género: %s\n",
-        song->id, song->artists, song->album_name, song->track_name, song->tempo, song->genre);
-}
-
-// Función para comparar dos cadenas de caracteres para ver si son iguales 
 int is_equal_str(void *key1, void *key2) {
-    // convierte las claves a cadenas de caracteres y compara usando strcmp
-    // devuelve 1(verdadero) si son iguales, 0(falso) si no lo son 
     return strcmp((char *)key1, (char *)key2) == 0;
 }
 
-// Función auxiliar para normalizar strings
-void normalizar(char *str) {
-    for (int i = 0; str[i]; i++) {
-        str[i] = tolower((unsigned char)str[i]);
+// Función para eliminar espacios y saltos de línea al final de una cadena
+void quitarEspaciosFinales(char *str) {
+    int len = strlen(str);
+    while (len > 0 && (str[len - 1] == ' ' || str[len - 1] == '\n' || str[len - 1] == '\r')) {
+        str[len - 1] = '\0';
+        len--;
     }
 }
 
-
-void cargarCanciones(Map *mapaCanciones, Map *by_genre, Map *by_artist, FILE *archivo) {
+void cargarCanciones(Map *mapaCanciones, Map *by_genre, Map *by_artist, List *all_songs, FILE *archivo) {
     char linea[1024];
     if (!fgets(linea, sizeof(linea), archivo)) return;  // Saltar cabecera
 
     while (fgets(linea, sizeof(linea), archivo)) {
-        char *campos[30];  // Suponemos que hay hasta 30 columnas
+        char *campos[30];
         int i = 0;
         char *linea_copia = strdup(linea);
-        
         if (!linea_copia) continue;
-        
-        // Eliminar el salto de línea al final de la línea
         linea_copia[strcspn(linea_copia, "\r\n")] = 0;
 
         char *token = strtok(linea_copia, ",");
@@ -99,324 +83,218 @@ void cargarCanciones(Map *mapaCanciones, Map *by_genre, Map *by_artist, FILE *ar
             continue;
         }
 
-        // Copiar los campos relevantes con verificación de longitud
         strncpy(song->id, id, sizeof(song->id) - 1);
         song->id[sizeof(song->id) - 1] = '\0';
-        
-        strncpy(song->artists, campos[2], sizeof(song->artists) - 1);
-        song->artists[sizeof(song->artists) - 1] = '\0';
-        
+        quitarEspaciosFinales(song->id); 
+
+
+        song->artists = list_create();
+        list_pushBack(song->artists, strdup(campos[2]));
+
         strncpy(song->album_name, campos[3], sizeof(song->album_name) - 1);
         song->album_name[sizeof(song->album_name) - 1] = '\0';
-        
+
         strncpy(song->track_name, campos[4], sizeof(song->track_name) - 1);
         song->track_name[sizeof(song->track_name) - 1] = '\0';
-        
+
         song->tempo = atof(campos[19]);
-        
+
         strncpy(song->genre, campos[21], sizeof(song->genre) - 1);
         song->genre[sizeof(song->genre) - 1] = '\0';
 
+        char *id_copia = strdup(song->id);
+        if (!id_copia) {
+            free(song);
+            free(linea_copia);
+            continue;
+        }
+        map_insert(mapaCanciones, id_copia, song);
 
-        // Insertar en mapa general
-        map_insert(mapaCanciones, strdup(song->id), song);
-
-        // Insertar por género
-        List *list_genre = (List*)map_search(by_genre, song->genre);
+        MapPair *pair_genre = map_search(by_genre, song->genre);
+        List *list_genre = pair_genre ? pair_genre->value : NULL;
         if (!list_genre) {
             list_genre = list_create();
             map_insert(by_genre, strdup(song->genre), list_genre);
         }
         list_pushBack(list_genre, song);
 
-        // Insertar por artista
-        List *list_artist = (List*)map_search(by_artist, song->artists);
-        if (!list_artist) {
-            list_artist = list_create();
-            map_insert(by_artist, strdup(song->artists), list_artist);
+        char *artista = list_first(song->artists);
+        if (artista) {
+            MapPair *pair_artist = map_search(by_artist, artista);
+            List *list_artist = pair_artist ? pair_artist->value : NULL;
+            if (!list_artist) {
+                list_artist = list_create();
+                map_insert(by_artist, strdup(artista), list_artist);
+            }
+            list_pushBack(list_artist, song);
         }
-        list_pushBack(list_artist, song);
+
+        list_pushBack(all_songs, song);
+        free(linea_copia);
     }
 
     printf("Canciones cargadas correctamente.\n");
 }
-    
 
-// Buscar por género 
-void buscar_por_genero(Map *by_genre) {
+void buscarPorGenero(Map *songs_by_genre) {
     char genero[100];
-    printf("Ingrese el género que desea buscar: ");
-    scanf(" %[^\n]", genero);
-    normalizar(genero);
-
-    MapPair *pair = map_search(by_genre, genero);
-    if (!pair) {
-        printf("No se encontraron canciones para el género \"%s\".\n", genero);
-        return;
-    }
-
-    List *canciones = (List *) pair->value;
-    Song *song = list_first(canciones);
-    while (song) {
-        mostrarCanciones(song);
-        song = list_next(canciones);
-    }
-}
-
-/*
-void buscar_por_genero(Map *by_genre) {
-    char genero[100];
-    printf("Ingrese el género que desea buscar: ");
+    printf("Ingrese el género: ");
     scanf(" %[^\n]", genero);
 
-    List *lista = (List *)map_search(by_genre, genero);
-    if (!lista || list_size(lista) == 0) {
-        printf("No se encontraron canciones para el género \"%s\".\n", genero);
-        return;
-    }
 
-    printf("\nCanciones del género \"%s\":\n", genero);
-    printf("----------------------------------------\n");
-
-    Song *song = (Song *)list_first(lista);
-    while (song != NULL) {
-        mostrarCanciones(song);
-        song = (Song *)list_next(lista);
-    }
-    printf("----------------------------------------\n");
-}
-*/
-
-
-void buscar_por_artista(Map *by_artist) {
-    char artista[100];
-    printf("Ingrese el nombre del artista que desea buscar: ");
-    scanf(" %[^\n]", artista);
-    normalizar(artista);
-
-    MapPair *pair = map_search(by_artist, artista);
+    MapPair *pair = map_search(songs_by_genre, genero);
     if (!pair) {
-        printf("No se encontraron canciones para el artista \"%s\".\n", artista);
+        printf("No se encontraron canciones para el género '%s'.\n", genero);
         return;
     }
 
-    List *canciones = (List *) pair->value;
-    Song *song = list_first(canciones);
-    while (song) {
-        mostrarCanciones(song);
-        song = list_next(canciones);
+    List *lista = pair->value;
+    for (Song *s = list_first(lista); s; s = list_next(lista)) {
+        printf("%s | %s | %s | %s | %.2f BPM\n",
+               s->id, s->track_name, s->album_name, s->genre, s->tempo);
     }
 }
 
-/*
-void buscar_por_artista(Map *by_artist) {
+void buscarPorArtista(Map *songs_by_artist) {
     char artista[100];
-    printf("Ingrese el nombre del artista que desea buscar: ");
+    printf("Ingrese el artista: ");
     scanf(" %[^\n]", artista);
 
-    List *lista = (List *)map_search(by_artist, artista);
-    if (!lista || list_size(lista) == 0) {
-        printf("No se encontraron canciones para el artista \"%s\".\n", artista);
+    MapPair *pair = map_search(songs_by_artist, artista);
+    if (!pair) {
+        printf("No se encontraron canciones para el artista '%s'.\n", artista);
         return;
     }
 
-    printf("\nCanciones del artista \"%s\":\n", artista);
-    printf("----------------------------------------\n");
-
-    Song *song = (Song *)list_first(lista);
-    while (song != NULL) {
-        mostrarCanciones(song);
-        song = (Song *)list_next(lista);
+    List *lista = pair->value;
+    for (Song *s = list_first(lista); s; s = list_next(lista)) {
+        printf("%s | %s | %s | %s | %.2f BPM\n",
+               s->id, s->track_name, s->album_name, s->genre, s->tempo);
     }
-    printf("----------------------------------------\n");
 }
-*/
 
-
-// Función para buscar canciones según el tempo seleccionado por el usuario
 void buscarPorTempo(List *todas) {
-     int opcion;
-     printf("Seleccione tipo de tempo:\n1) Lento (<80)\n2) Moderado (80-120)\n3) Rápido (>120)\nOpcion: ");
-     scanf("%d", &opcion);
- 
-     for (Song *s = list_first(todas); s; s = list_next(todas)) {
-         if ((opcion == 1 && s->tempo < 80) ||
-             (opcion == 2 && s->tempo >= 80 && s->tempo <= 120) ||
-             (opcion == 3 && s->tempo > 120)) {
-             printf("%s | %s | %.2f BPM | %s\n", s->id, s->track_name, s->tempo, s->genre);
-         }
-     }
- }
-
-/*
-void buscar_por_tempo(Map *mapaCanciones) {
     int opcion;
-    // Mostrar las opciones de tempo al usuario
-    printf("Selecciona el tipo de tempo:\n");
-    printf("1) Lentas (<80 BPM)\n2) Moderadas (80-120 BPM)\n3) Rapidas (>120 BPM)\nOpción: ");
-    scanf("%d", &opcion);  // Leer la opción elegida por el usuario
-    // Obtener el primer par clave-valor del mapa de canciones
-    MapPair *pair = map_first(mapaCanciones);
-    // Recorrer todas las canciones del mapa
-    while (pair) {
-        Song *song = (Song *)pair->value;  // Obtener la canción del par actual
-        // Verificar si la canción cumple con el tempo seleccionado
-        if ((opcion == 1 && song->tempo < 80) ||
-            (opcion == 2 && song->tempo >= 80 && song->tempo <= 120) ||
-            (opcion == 3 && song->tempo > 120)) {
-            mostrarCanciones(song);  // Mostrar la canción si cumple con el criterio
+    printf("Seleccione tipo de tempo:\n1) Lento (<80)\n2) Moderado (80-120)\n3) Rápido (>120)\nOpcion: ");
+    scanf("%d", &opcion);
+
+    for (Song *s = list_first(todas); s; s = list_next(todas)) {
+        if ((opcion == 1 && s->tempo < 80) ||
+            (opcion == 2 && s->tempo >= 80 && s->tempo <= 120) ||
+            (opcion == 3 && s->tempo > 120)) {
+            printf("%s | %s | %.2f BPM | %s\n", s->id, s->track_name, s->tempo, s->genre);
         }
-        // Avanzar al siguiente par del mapa
-        pair = map_next(mapaCanciones);
     }
 }
-    */
 
-// Función para crear una nueva lista de reproducción
-void crear_lista(Map *playlists) {
+void crearLista(Map *listas) {
     char nombre[100];
-    // Pedir al usuario el nombre de la nueva lista
-    printf("Ingrese el nombre de la nueva lista: ");
-    scanf(" %[^\n]", nombre);  // Leer una línea completa (incluye espacios)
-    // Verificar si ya existe una lista con el mismo nombre
-    if (map_search(playlists, nombre) != NULL) {
-        printf("Ya existe una lista con ese nombre.\n");
-        return;  // Salir de la función si la lista ya existe
+    printf("Nombre de la lista: ");
+    scanf(" %[^\n]", nombre);
+
+
+    if (map_search(listas, nombre)) {
+        printf("La lista ya existe.\n");
+        return;
     }
-    // Crear una nueva lista vacía
-    List *nueva_lista = list_create();
-    // Insertar la nueva lista en el mapa usando una copia del nombre como clave
-    map_insert(playlists, strdup(nombre), nueva_lista);  // strdup duplica la cadena para evitar problemas de memoria
-    // Confirmar la creación al usuario
-    printf("Lista \"%s\" creada correctamente.\n", nombre);
+
+    map_insert(listas, strdup(nombre), list_create());
+    printf("Lista '%s' creada.\n", nombre);
 }
 
-// Función para agregar una canción a una lista de reproducción
-void agregar_cancion_a_lista(Map *mapaCanciones, Map *playlists) {
-    char id[100], nombre_lista[100];
-    // Pedir al usuario el ID de la canción
-    printf("Ingrese el ID de la canción: ");
-    scanf(" %s", id);
-    // Pedir al usuario el nombre de la lista de reproducción
-    printf("Ingrese el nombre de la lista de reproducción: ");
-    scanf(" %[^\n]", nombre_lista);  // Leer una línea completa (incluye espacios)
-    // Buscar la canción en el mapa de canciones usando el ID
-    MapPair *cancion_pair = map_search(mapaCanciones, id);
-    // Buscar la lista de reproducción en el mapa de listas usando el nombre
-    MapPair *lista_pair = map_search(playlists, nombre_lista);
-    // Verificar si la canción existe
-    if (!cancion_pair) {
-        printf("No se encontró la canción con ID %s.\n", id);
-        return;  // Salir si la canción no existe
+
+void agregarCancion(Map *por_id, Map *listas) {
+    char id[100], lista[100];
+
+    printf("ID de canción: ");
+    getchar();  // limpia el \n pendiente en stdin
+    fgets(id, sizeof(id), stdin);
+    quitarEspaciosFinales(id);
+
+    printf("Nombre de la lista: ");
+    fgets(lista, sizeof(lista), stdin);
+    quitarEspaciosFinales(lista);
+
+    // Depuración opcional
+    printf("Buscando ID: '%s'\n", id);
+    printf("Buscando lista: '%s'\n", lista);
+
+    MapPair *song_pair = map_search(por_id, id);
+    if (!song_pair) {
+        printf("No se encontró la canción con ID '%s'.\n", id);
+        return;
     }
-    // Verificar si la lista de reproducción existe
-    if (!lista_pair) {
-        printf("No se encontró la lista \"%s\".\n", nombre_lista);
-        return;  // Salir si la lista no existe
+
+    MapPair *list_pair = map_search(listas, lista);
+    if (!list_pair) {
+        printf("No se encontró la lista '%s'.\n", lista);
+        return;
     }
-    // Agregar la canción a la lista de reproducción (al final de la lista)
-    list_pushBack((List *)lista_pair->value, cancion_pair->value);
-    // Confirmar al usuario que la canción fue añadida
-    printf("Canción añadida a la lista \"%s\".\n", nombre_lista);
+
+    List *listaCanciones = list_pair->value;
+    list_pushBack(listaCanciones, song_pair->value);
+
+    printf("Canción '%s' añadida correctamente a la lista '%s'.\n", id, lista);
 }
 
-// Función para mostrar las canciones de una lista de reproducción
-void mostrar_canciones_lista(Map *playlists) {
-    char nombre_lista[100];
-    // Pedir al usuario el nombre de la lista de reproducción
-    printf("Ingrese el nombre de la lista de reproducción: ");
-    scanf(" %[^\n]", nombre_lista);  // Leer una línea completa (incluye espacios)
-    // Buscar la lista de reproducción en el mapa usando el nombre
-    MapPair *pair = map_search(playlists, nombre_lista);
-    // Verificar si la lista existe
+
+void mostrarLista(Map *listas) {
+    char nombre[100];
+    printf("Nombre de la lista: ");
+    scanf(" %[^\n]", nombre);
+
+
+    MapPair *pair = map_search(listas, nombre);
     if (!pair) {
-        printf("No se encontró la lista \"%s\".\n", nombre_lista);
-        return;  // Salir si la lista no existe
+        printf("Lista no encontrada.\n");
+        return;
     }
-    // Obtener la lista de canciones asociada a la lista de reproducción
-    List *lista = (List *)pair->value; 
-    // Obtener la primera canción de la lista
-    Song *song = list_first(lista);
-    // Recorrer la lista de canciones y mostrarlas una por una
-    while (song) {
-        mostrarCanciones(song);  // Mostrar los detalles de la canción actual
-        song = list_next(lista); // Avanzar a la siguiente canción
+
+    printf("\n--- Lista '%s' ---\n", nombre);
+    for (Song *s = list_first(pair->value); s; s = list_next(pair->value)) {
+        printf("%s | %s | %s | %s | %.2f BPM\n",
+               s->id, s->track_name, s->album_name, s->genre, s->tempo);
     }
 }
 
 int main() {
-    // Crear los mapas para almacenar canciones por diferentes criterios
-    Map *mapaCanciones = map_create(is_equal_str);  // Mapa con todas las canciones por ID
-    Map *by_genre = map_create(is_equal_str);       // Mapa para buscar canciones por género
-    Map *by_artist = map_create(is_equal_str);      // Mapa para buscar canciones por artista
-    Map *playlists = map_create(is_equal_str);      // Mapa para las listas de reproducción
-    // Crear una lista para almacenar todas las canciones 
+    Map *mapaCanciones = map_create(is_equal_str);
+    Map *by_genre = map_create(is_equal_str);
+    Map *by_artist = map_create(is_equal_str);
+    Map *playlists = map_create(is_equal_str);
+    List *all_songs = list_create();
+
     int opcion;
-    // Bucle principal del menú
     do {
-        // Mostrar el menú de opciones al usuario
         mostrarMenuPrincipal();
         scanf("%d", &opcion);
-        // Ejecutar la opción seleccionada
+
         switch (opcion) {
             case 1: {
-                // Cargar las canciones desde el archivo CSV
                 FILE *archivo = fopen("data/song_dataset_.csv", "r");
-                if (archivo == NULL) {
-                    printf("El archivo no pudo abrirse.\n");
-                    break;
+                if (archivo) {
+                    cargarCanciones(mapaCanciones, by_genre, by_artist, all_songs, archivo);
+                    fclose(archivo);
+                } else {
+                    printf("No se pudo abrir el archivo.\n");
                 }
-                cargarCanciones(mapaCanciones, by_genre, by_artist, archivo);
-                fclose(archivo);
                 break;
             }
-            case 2:
-                // Buscar canciones por género
-                buscar_por_genero(by_genre);
-                break;
-
-            case 3:
-                // Buscar canciones por artista
-                buscar_por_artista(by_artist);  
-                break;
-
-            case 4:
-                // Buscar canciones por tempo
-                buscarPorTempo(mapaCanciones);
-                break;
-
-            case 5:
-                // Crear una nueva lista de reproducción
-                crear_lista(playlists);
-                break;
-
-            case 6:
-                // Agregar una canción a una lista de reproducción
-                agregar_cancion_a_lista(mapaCanciones, playlists);
-                break;
-
-            case 7:
-                // Mostrar las canciones de una lista de reproducción
-                mostrar_canciones_lista(playlists);
-                break;
-
-            case 8:
-                // Salir del programa
-                printf("¡Hasta luego!\n");
-                break;
-
-            default:
-                // Opción no válida
-                printf("Opción no válida. Intente nuevamente.\n");
-                break;
+            case 2: buscarPorGenero(by_genre); break;
+            case 3: buscarPorArtista(by_artist); break;
+            case 4: buscarPorTempo(all_songs); break;
+            case 5: crearLista(playlists); break;
+            case 6: agregarCancion(mapaCanciones, playlists); break;
+            case 7: mostrarLista(playlists); break;
+            case 8: printf("Saliendo...\n"); break;
+            default: printf("Opción no válida.\n"); break;
         }
-        // Pausar antes de volver a mostrar el menú (si no es la opción de salir)
+
         if (opcion != 8) {
-            printf("\nPresione ENTER para continuar...");
-            getchar(); getchar();  // Esperar dos veces para capturar el ENTER
+            printf("Presione ENTER para continuar...");
+            getchar(); getchar();
         }
-
-    } while (opcion != 8);  // Repetir mientras no se elija salir
+    } while (opcion != 8);
 
     return 0;
 }
