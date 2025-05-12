@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
+#include <ctype.h>
 
 // Estructura para almacenar la información de una canción 
 typedef struct {
@@ -50,6 +52,13 @@ int is_equal_str(void *key1, void *key2) {
     // convierte las claves a cadenas de caracteres y compara usando strcmp
     // devuelve 1(verdadero) si son iguales, 0(falso) si no lo son 
     return strcmp((char *)key1, (char *)key2) == 0;
+}
+
+// Función auxiliar para normalizar strings
+void normalizar(char *str) {
+    for (int i = 0; str[i]; i++) {
+        str[i] = tolower((unsigned char)str[i]);
+    }
 }
 
 
@@ -131,21 +140,36 @@ void cargarCanciones(Map *mapaCanciones, Map *by_genre, Map *by_artist, FILE *ar
 
     printf("Canciones cargadas correctamente.\n");
 }
-
+    
 
 // Buscar por género 
 void buscar_por_genero(Map *by_genre) {
     char genero[100];
     printf("Ingrese el género que desea buscar: ");
     scanf(" %[^\n]", genero);
+    normalizar(genero);
 
     MapPair *pair = map_search(by_genre, genero);
-    if (!pair || !pair->value) {
+    if (!pair) {
         printf("No se encontraron canciones para el género \"%s\".\n", genero);
         return;
     }
 
-    List *lista = (List *)pair->value;
+    List *canciones = (List *) pair->value;
+    Song *song = list_first(canciones);
+    while (song) {
+        mostrarCanciones(song);
+        song = list_next(canciones);
+    }
+}
+
+/*
+void buscar_por_genero(Map *by_genre) {
+    char genero[100];
+    printf("Ingrese el género que desea buscar: ");
+    scanf(" %[^\n]", genero);
+
+    List *lista = (List *)map_search(by_genre, genero);
     if (!lista || list_size(lista) == 0) {
         printf("No se encontraron canciones para el género \"%s\".\n", genero);
         return;
@@ -153,7 +177,7 @@ void buscar_por_genero(Map *by_genre) {
 
     printf("\nCanciones del género \"%s\":\n", genero);
     printf("----------------------------------------\n");
-    
+
     Song *song = (Song *)list_first(lista);
     while (song != NULL) {
         mostrarCanciones(song);
@@ -161,19 +185,36 @@ void buscar_por_genero(Map *by_genre) {
     }
     printf("----------------------------------------\n");
 }
+*/
+
 
 void buscar_por_artista(Map *by_artist) {
     char artista[100];
     printf("Ingrese el nombre del artista que desea buscar: ");
     scanf(" %[^\n]", artista);
+    normalizar(artista);
 
     MapPair *pair = map_search(by_artist, artista);
-    if (!pair || !pair->value) {
+    if (!pair) {
         printf("No se encontraron canciones para el artista \"%s\".\n", artista);
         return;
     }
 
-    List *lista = (List *)pair->value;
+    List *canciones = (List *) pair->value;
+    Song *song = list_first(canciones);
+    while (song) {
+        mostrarCanciones(song);
+        song = list_next(canciones);
+    }
+}
+
+/*
+void buscar_por_artista(Map *by_artist) {
+    char artista[100];
+    printf("Ingrese el nombre del artista que desea buscar: ");
+    scanf(" %[^\n]", artista);
+
+    List *lista = (List *)map_search(by_artist, artista);
     if (!lista || list_size(lista) == 0) {
         printf("No se encontraron canciones para el artista \"%s\".\n", artista);
         return;
@@ -181,7 +222,7 @@ void buscar_por_artista(Map *by_artist) {
 
     printf("\nCanciones del artista \"%s\":\n", artista);
     printf("----------------------------------------\n");
-    
+
     Song *song = (Song *)list_first(lista);
     while (song != NULL) {
         mostrarCanciones(song);
@@ -189,8 +230,25 @@ void buscar_por_artista(Map *by_artist) {
     }
     printf("----------------------------------------\n");
 }
+*/
+
 
 // Función para buscar canciones según el tempo seleccionado por el usuario
+void buscarPorTempo(List *todas) {
+     int opcion;
+     printf("Seleccione tipo de tempo:\n1) Lento (<80)\n2) Moderado (80-120)\n3) Rápido (>120)\nOpcion: ");
+     scanf("%d", &opcion);
+ 
+     for (Song *s = list_first(todas); s; s = list_next(todas)) {
+         if ((opcion == 1 && s->tempo < 80) ||
+             (opcion == 2 && s->tempo >= 80 && s->tempo <= 120) ||
+             (opcion == 3 && s->tempo > 120)) {
+             printf("%s | %s | %.2f BPM | %s\n", s->id, s->track_name, s->tempo, s->genre);
+         }
+     }
+ }
+
+/*
 void buscar_por_tempo(Map *mapaCanciones) {
     int opcion;
     // Mostrar las opciones de tempo al usuario
@@ -212,6 +270,7 @@ void buscar_por_tempo(Map *mapaCanciones) {
         pair = map_next(mapaCanciones);
     }
 }
+    */
 
 // Función para crear una nueva lista de reproducción
 void crear_lista(Map *playlists) {
@@ -323,7 +382,7 @@ int main() {
 
             case 4:
                 // Buscar canciones por tempo
-                buscar_por_tempo(mapaCanciones);
+                buscarPorTempo(mapaCanciones);
                 break;
 
             case 5:
